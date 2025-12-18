@@ -1,0 +1,5 @@
+streamlit
+pydantic
+python-dateutil
+icalendar
+reportlab
