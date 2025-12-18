@@ -14,6 +14,7 @@ from planner import (
     generate_week_plan,
     reschedule_overdue,
 )
+from storage import migrate_repo_data_once
 from profiles import (
     create_profile,
     delete_profile,
@@ -30,6 +31,7 @@ st.set_page_config(page_title="Study Planner", page_icon="📚", layout="wide")
 
 
 def _ensure_session_state() -> list[str]:
+    migrate_repo_data_once()
     migrate_legacy_state()
     profiles = list_profiles()
     if not profiles:
@@ -139,6 +141,8 @@ with st.sidebar:
     if st.button("Reload profile"):
         _switch_profile(current_profile)
         st.rerun()
+
+    st.caption("Data is stored locally on this device, outside the project folder.")
 
 
 tab_subjects, tab_calendar, tab_plan, tab_progress = st.tabs(

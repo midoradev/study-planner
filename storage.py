@@ -1,7 +1,13 @@
 from __future__ import annotations
+import json
+import shutil
 from pathlib import Path
 from typing import Any
-import json
+
+from paths import get_data_dir
+
+
+DATA_DIR = get_data_dir()
 
 
 def _deep_copy_default(default: Any) -> Any:
@@ -9,6 +15,13 @@ def _deep_copy_default(default: Any) -> Any:
         return json.loads(json.dumps(default))
     except Exception:
         return default
+
+
+def data_path(filename: str | Path) -> Path:
+    """
+    Resolve a file path inside the external data directory.
+    """
+    return DATA_DIR / Path(filename)
 
 
 def _backup_file(path: Path, content: str) -> None:
@@ -20,7 +33,41 @@ def _backup_file(path: Path, content: str) -> None:
         pass
 
 
-def load_json(path: Path, default: Any | None = None) -> Any:
+def migrate_repo_data_once() -> None:
+    """
+    One-time migration from repo-local ./data to the external data directory.
+    Only runs when the target directory is empty.
+    """
+    legacy_dir = Path(__file__).resolve().parent / "data"
+    target_dir = DATA_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    has_legacy_dir = legacy_dir.exists()
+    has_state_file = (legacy_dir / "state.json").exists()
+    has_profile_files = list(legacy_dir.glob("state__*.json")) if legacy_dir.exists() else []
+
+    if not (has_legacy_dir or has_state_file or has_profile_files):
+        return
+    if any(target_dir.iterdir()):
+        return
+    if not legacy_dir.is_dir():
+        return
+
+    for src in legacy_dir.iterdir():
+        if not src.is_file():
+            continue
+        dest = target_dir / src.name
+        try:
+            shutil.copy2(src, dest)
+        except Exception:
+            continue
+        try:
+            src.rename(src.with_suffix(src.suffix + ".migrated"))
+        except Exception:
+            pass
+
+
+def load_json(path: Path | str, default: Any | None = None) -> Any:
     """
     Load JSON from path with safety:
     - If missing: return default
@@ -49,7 +96,7 @@ def load_json(path: Path, default: Any | None = None) -> Any:
         return _deep_copy_default(default_value)
 
 
-def save_json(path: Path, payload: Any) -> None:
+def save_json(path: Path | str, payload: Any) -> None:
     """
     Atomic JSON write: write to temp file then replace target.
     """

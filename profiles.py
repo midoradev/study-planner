@@ -3,11 +3,11 @@ import re
 from pathlib import Path
 from typing import List
 from models import AppState
-from storage import load_json, save_json
+from storage import data_path, load_json, save_json
 
-DATA_DIR = Path("data")
-PROFILES_FILE = DATA_DIR / "profiles.json"
-LEGACY_FILE = DATA_DIR / "state.json"
+DATA_DIR = data_path("")
+PROFILES_FILE = data_path("profiles.json")
+LEGACY_FILE = data_path("state.json")
 
 
 def _sanitize_profile_name(name: str) -> str:
@@ -18,7 +18,7 @@ def _sanitize_profile_name(name: str) -> str:
 
 def _profile_path(profile_name: str) -> Path:
     safe = _sanitize_profile_name(profile_name)
-    return DATA_DIR / f"state__{safe}.json"
+    return data_path(f"state__{safe}.json")
 
 
 def _save_profiles_list(profiles: List[str]) -> None:
@@ -28,7 +28,7 @@ def _save_profiles_list(profiles: List[str]) -> None:
 def migrate_legacy_state() -> None:
     """
     One-time migration:
-    - If data/state.json exists AND no profile files exist yet
+    - If legacy state.json exists AND no profile files exist yet
     - Import into default profile, then rename legacy file to .migrated
     """
     if not LEGACY_FILE.exists():
