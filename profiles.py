@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 from typing import List
 from models import AppState
-from storage import data_path, load_json, save_json
+from storage import data_path, ensure_data_dir, load_json, save_json
 
 DATA_DIR = data_path("")
 PROFILES_FILE = data_path("profiles.json")
@@ -31,14 +31,14 @@ def migrate_legacy_state() -> None:
     - If legacy state.json exists AND no profile files exist yet
     - Import into default profile, then rename legacy file to .migrated
     """
+    ensure_data_dir()
     if not LEGACY_FILE.exists():
         return
     if any(DATA_DIR.glob("state__*.json")):
         return
 
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
     default_state = AppState(profile="default")
-    raw = load_json(LEGACY_FILE, default_state.model_dump(mode="json"))
+    raw = load_json(LEGACY_FILE)
     try:
         migrated_state = AppState.model_validate(raw)
     except Exception:
@@ -53,8 +53,10 @@ def migrate_legacy_state() -> None:
 
 
 def list_profiles() -> List[str]:
-    data = load_json(PROFILES_FILE, {"profiles": []})
-    profiles: List[str] = [p for p in data.get("profiles", []) if isinstance(p, str)]
+    ensure_data_dir()
+    data = load_json(PROFILES_FILE)
+    profiles: List[str] = [p for p in data.get("profiles", []) if isinstance(p, str)] if isinstance(data, dict) else []
+    needs_save = not isinstance(data, dict) or "profiles" not in data
 
     # Discover any files on disk not in the list
     discovered = []
@@ -70,15 +72,26 @@ def list_profiles() -> List[str]:
 
     if not combined:
         combined = ["default"]
+        needs_save = True
+
+    if combined != profiles:
+        needs_save = True
+
+    if needs_save:
         _save_profiles_list(combined)
+
+    default_path = _profile_path("default")
+    if "default" in combined and not default_path.exists():
+        default_state = AppState(profile="default")
+        save_json(default_path, default_state.model_dump(mode="json"))
 
     return combined
 
 
 def load_profile(profile_name: str) -> AppState:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    ensure_data_dir()
     default_state = AppState(profile=profile_name)
-    raw = load_json(_profile_path(profile_name), default_state.model_dump(mode="json"))
+    raw = load_json(_profile_path(profile_name))
     try:
         state = AppState.model_validate(raw)
     except Exception:
